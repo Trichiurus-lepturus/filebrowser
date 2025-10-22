@@ -5,6 +5,20 @@ import VueI18nPlugin from "@intlify/unplugin-vue-i18n/vite";
 import legacy from "@vitejs/plugin-legacy";
 import { compression } from "vite-plugin-compression2";
 
+// Inject custom.css at the end of <head> to override Vite-generated styles
+const customCSSInjectionPlugin = {
+  name: 'custom-css-injection',
+  transformIndexHtml(html: string) {
+    const withoutExistingTemplate = html.replace(
+      /\[{\[\s*if \.CSS\s*-\]}\]\s*<link\s+rel="stylesheet"\s+href="\[{\[\s*\.StaticURL\s*\]}\]\/custom\.css"\s*\/>\s*\[{\[\s*end\s*\]}\]/g,
+      '');
+    return withoutExistingTemplate.replace(
+      /(<\/head>)/,
+      `\n    [{[ if .CSS -]}]\n    <link rel="stylesheet" href="[{[ .StaticURL ]}]/custom.css" />\n    [{[ end ]}]\n$1`
+    );
+  }
+};
+
 const plugins = [
   vue(),
   VueI18nPlugin({
@@ -15,6 +29,7 @@ const plugins = [
     targets: ["defaults"],
   }),
   compression({ include: /\.js$/i, deleteOriginalAssets: true }),
+  customCSSInjectionPlugin,
 ];
 
 const resolve = {
@@ -47,11 +62,13 @@ export default defineConfig(({ command }) => {
       resolve,
       base: "",
       build: {
+        cssCodeSplit: true,
         rollupOptions: {
           input: {
             index: path.resolve(__dirname, "./public/index.html"),
           },
           output: {
+            assetFileNames: 'assets/[name]-[hash][extname]',
             manualChunks: (id) => {
               // bundle dayjs files in a single chunk
               // this avoids having small files for each locale
